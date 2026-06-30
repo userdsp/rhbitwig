@@ -574,7 +574,7 @@ public class DrumSequenceMode extends Layer {
     }
 
     public void registerExpectedNoteChange(final int x, final NoteStep noteStep) {
-        expectedNoteChanges.put(noteStep.x(), noteStep);
+        expectedNoteChanges.put(x, noteStep);
     }
 
     public BooleanValueObject getLengthDisplay() {
