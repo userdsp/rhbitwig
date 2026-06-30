@@ -48,8 +48,9 @@ public class PadHandler {
     private final DisplayTarget displayTarget;
     private final DisplayInfo padDisplayInfo;
 
-    // БУФЕР ЗА КОПИРАНИТЕ НОТИ - ЗАПАЗВА ВСИЧКИ ПАРАМЕТРИ
+    // БУФЕР ЗА КОПИРАНИТЕ НОТИ
     private List<NoteData> copyBuffer = null;
+    private boolean isCopyHeld = false;
 
     // КЛАС ЗА СЪХРАНЕНИЕ НА ВСИЧКИ ДАННИ НА НОТА
     private static class NoteData {
@@ -87,7 +88,6 @@ public class PadHandler {
             this.occurrence = note.occurrence();
         }
 
-        // ПРИЛАГА ВСИЧКИ ПАРАМЕТРИ КЪМ НОВА НОТА
         void applyTo(NoteStep note) {
             note.setVelocity(this.velocity / 127.0);
             note.setDuration(this.duration);
@@ -173,20 +173,36 @@ public class PadHandler {
         final BiColorButton downNavButon = driver.getButton(NoteAssign.PATTERN_DOWN);
         downNavButon.markPressedInteressed();
         downNavButon.bindPressed(mainLayer, this::scrollBackward, () -> canScrollDown(downNavButon));
+
+        // COPY БУТОН
+        final BiColorButton copyButton = driver.getButton(NoteAssign.MUTE_3);
+        copyButton.bindPressed(mainLayer, pressed -> {
+            if (!pressed) {
+                isCopyHeld = false;
+                parent.getOled().paramInfo("COPY", "Released");
+            } else {
+                isCopyHeld = true;
+                // АКО ИМА БУФЕР, ПОКАЗВАМЕ
+                if (copyBuffer != null && !copyBuffer.isEmpty()) {
+                    parent.getOled().paramInfo("COPY", "Buffer ready - " + copyBuffer.size() + " notes");
+                } else {
+                    parent.getOled().paramInfo("COPY", "Select source pad first");
+                }
+            }
+        }, () -> BiColorLightState.GREEN_FULL);
     }
 
     private void handlePadSelection(final PadContainer pad, final boolean pressed) {
         if (!pressed) {
             padsHeld.remove(pad.index);
         } else {
-            if (parent.isCopyHeld()) {
-                // АКО COPY Е ЗАДЪРЖАН
-                if (copyBuffer == null) {
-                    // НЯМА БУФЕР -> КОПИРАМЕ МАРКИРАНИЯ ПАД (ВСИЧКИ ПАРАМЕТРИ)
-                    doCopySelectedPad();
+            if (isCopyHeld) {
+                // COPY + PAD = PASTE
+                if (copyBuffer != null && !copyBuffer.isEmpty()) {
+                    doPaste(pad);
+                } else {
+                    parent.getOled().paramInfo("PASTE", "No buffer! Select source first");
                 }
-                // ВИНАГИ ИЗПЪЛНЯВАМЕ PASTE ВЪРХУ НАТИСНАТИЯ ПАД (С ВСИЧКИ ПАРАМЕТРИ)
-                doPaste(pad);
             } else if (parent.isDeleteHeld()) {
                 if (pad.index == selectedPadIndex) {
                     cursorClip.clearStepsAtY(0, 0);
@@ -195,28 +211,30 @@ public class PadHandler {
                     pad.pad.selectInEditor();
                 }
             } else {
+                // НОРМАЛНО МАРКИРАНЕ НА ПАД - ТОВА КОПИРА В БУФЕРА
                 pad.pad.selectInEditor();
                 padsHeld.add(pad.index);
+                // АВТОМАТИЧНО КОПИРАНЕ В БУФЕРА ПРИ МАРКИРАНЕ
+                doAutoCopySelectedPad();
             }
         }
     }
 
     /**
-     * КОПИРА МАРКИРАНИЯ ПАД В БУФЕРА - С ВСИЧКИ ПАРАМЕТРИ
+     * АВТОМАТИЧНО КОПИРАНЕ ПРИ МАРКИРАНЕ НА ПАД
      */
-    private void doCopySelectedPad() {
+    private void doAutoCopySelectedPad() {
         if (selectedPad == null) {
             return;
         }
         
-        // Взимаме нотите от маркирания пад
         List<NoteStep> notes = parent.getOnNotes();
         if (notes == null || notes.isEmpty()) {
             copyBuffer = null;
+            parent.getOled().paramInfo("COPY", "No notes on this pad");
             return;
         }
         
-        // Запазваме всички параметри в буфера
         copyBuffer = new ArrayList<>();
         for (final NoteStep noteStep : notes) {
             if (noteStep != null) {
@@ -228,52 +246,41 @@ public class PadHandler {
             }
         }
         
-        parent.getOled().paramInfo("COPIED", "Pad " + (selectedPadIndex + 1) + " (all params)");
+        parent.getOled().paramInfo("COPIED", "Pad " + (selectedPadIndex + 1) + " - " + copyBuffer.size() + " notes");
     }
 
     /**
-     * PASTE - ИЗПЪЛНЯВА СЕ ДВА ПЪТИ С ВСИЧКИ ПАРАМЕТРИ
+     * PASTE - ИЗПЪЛНЯВА СЕ ДВА ПЪТИ
      */
     private void doPaste(final PadContainer pad) {
         if (copyBuffer == null || copyBuffer.isEmpty()) {
+            parent.getOled().paramInfo("PASTE", "No buffer!");
             return;
         }
         
-        // Избираме дестинацията
         pad.pad.selectInEditor();
         cursorClip.scrollToKey(drumScrollOffset + pad.index);
         
-        // ПЪРВО PASTE - създава нотите с всички параметри
+        // ПЪРВО PASTE
         doSinglePaste(copyBuffer);
         
-        // ВТОРО PASTE - гарантира, че нотите ще звучат с всички параметри
+        // ВТОРО PASTE - гарантира, че нотите ще звучат
         doSinglePaste(copyBuffer);
         
-        parent.getOled().paramInfo("PASTED", "Pad " + (pad.index + 1) + " (all params)");
+        parent.getOled().paramInfo("PASTED", "Pad " + (pad.index + 1) + " - " + copyBuffer.size() + " notes");
     }
 
     /**
-     * ЕДИНСТВЕНО PASTE - ПРИЛАГА ВСИЧКИ ПАРАМЕТРИ
+     * ЕДИНСТВЕНО PASTE
      */
     private void doSinglePaste(final List<NoteData> notesData) {
-        // Изчистваме старите ноти
         cursorClip.clearStepsAtY(0, 0);
         
-        // Създаваме новите ноти с всички параметри от данните
         for (final NoteData data : notesData) {
             if (data != null) {
                 try {
-                    // Създаваме нотата с основните параметри
                     cursorClip.setStep(data.x, 0, data.velocity, data.duration);
-                    
-                    // Регистрираме за очаквана промяна
                     parent.registerExpectedNoteChange(data.x, null);
-                    
-                    // ВЗИМАМЕ НОВАТА НОТА И ПРИЛАГАМЕ ВСИЧКИ ПАРАМЕТРИ
-                    // Забележка: В Bitwig, след като създадем нотата,
-                    // ние трябва да приложим всички параметри чрез NoteStep обекта
-                    // Но понеже нямаме достъп до новосъздадената нота директно,
-                    // използваме метода applyTo, който ще се извика чрез registerExpectedNoteChange
                 } catch (Exception e) {
                     // Игнорираме
                 }
@@ -281,7 +288,6 @@ public class PadHandler {
         }
     }
 
-    // ИЗВИКВА СЕ КОГАТО СЕ ПУСНЕ COPY БУТОНА
     public void clearCopyBuffer() {
         copyBuffer = null;
     }
