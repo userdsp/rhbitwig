@@ -5,3 +5,14 @@
 * Launchpad Pro Mk3 Drum Sequencer/Editor
 * Allen & Heath Xone:K2 specialized DJ Setup
 * Akai Fire Drum Sequencer/Editor
+
+* Akai Fire Copy & Paste - Correct Workflow
+First tap → tap a pad to mark it as the source (it gets selected/highlighted)
+Second tap → tap the same or another pad to copy its notes to the buffer (this loads the notes you want to paste)
+Hold COPY button → keeps the buffer locked and ready for pasting
+Tap any other pad (while holding COPY) → pastes the copied notes to that pad (executes twice automatically for proper playback)
+Keep holding COPY → you can tap multiple pads one by one, and each will receive the same paste
+Summary:
+Select source → Copy to buffer → Hold COPY → Paste to destinations (multiple).
+
+Lexicon PSP42 ver. 2 is now also supported
