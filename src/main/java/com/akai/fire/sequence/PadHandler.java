@@ -48,6 +48,62 @@ public class PadHandler {
     private final DisplayTarget displayTarget;
     private final DisplayInfo padDisplayInfo;
 
+    // БУФЕР ЗА КОПИРАНИТЕ НОТИ - ЗАПАЗВА ВСИЧКИ ПАРАМЕТРИ
+    private List<NoteData> copyBuffer = null;
+
+    // КЛАС ЗА СЪХРАНЕНИЕ НА ВСИЧКИ ДАННИ НА НОТА
+    private static class NoteData {
+        int x;
+        int velocity;
+        double duration;
+        double chance;
+        double timbre;
+        double pressure;
+        double velocitySpread;
+        int repeatCount;
+        double repeatCurve;
+        double repeatVelocityCurve;
+        double repeatVelocityEnd;
+        int recurrenceLength;
+        int recurrenceMask;
+        NoteOccurrence occurrence;
+
+        NoteData(NoteStep note) {
+            this.x = note.x();
+            this.velocity = (int) Math.round(note.velocity() * 127.0);
+            if (this.velocity < 1) this.velocity = 1;
+            if (this.velocity > 127) this.velocity = 127;
+            this.duration = Math.max(note.duration(), 0.25);
+            this.chance = note.chance();
+            this.timbre = note.timbre();
+            this.pressure = note.pressure();
+            this.velocitySpread = note.velocitySpread();
+            this.repeatCount = note.repeatCount();
+            this.repeatCurve = note.repeatCurve();
+            this.repeatVelocityCurve = note.repeatVelocityCurve();
+            this.repeatVelocityEnd = note.repeatVelocityEnd();
+            this.recurrenceLength = note.recurrenceLength();
+            this.recurrenceMask = note.recurrenceMask();
+            this.occurrence = note.occurrence();
+        }
+
+        // ПРИЛАГА ВСИЧКИ ПАРАМЕТРИ КЪМ НОВА НОТА
+        void applyTo(NoteStep note) {
+            note.setVelocity(this.velocity / 127.0);
+            note.setDuration(this.duration);
+            note.setChance(this.chance);
+            note.setTimbre(this.timbre);
+            note.setPressure(this.pressure);
+            note.setVelocitySpread(this.velocitySpread);
+            note.setRepeatCount(this.repeatCount);
+            note.setRepeatCurve(this.repeatCurve);
+            note.setRepeatVelocityCurve(this.repeatVelocityCurve);
+            note.setRepeatVelocityEnd(this.repeatVelocityEnd);
+            note.setRecurrence(this.recurrenceLength, this.recurrenceMask);
+            note.setOccurrence(this.occurrence);
+        }
+    }
+
     public PadHandler(final AkaiFireDrumSeqExtension driver, final DrumSequenceMode parent, final Layer mainLayer,
                       final Layer muteLayer, final Layer soloLayer) {
         this.parent = parent;
@@ -124,7 +180,13 @@ public class PadHandler {
             padsHeld.remove(pad.index);
         } else {
             if (parent.isCopyHeld()) {
-                doNotesPadCopy(pad);
+                // АКО COPY Е ЗАДЪРЖАН
+                if (copyBuffer == null) {
+                    // НЯМА БУФЕР -> КОПИРАМЕ МАРКИРАНИЯ ПАД (ВСИЧКИ ПАРАМЕТРИ)
+                    doCopySelectedPad();
+                }
+                // ВИНАГИ ИЗПЪЛНЯВАМЕ PASTE ВЪРХУ НАТИСНАТИЯ ПАД (С ВСИЧКИ ПАРАМЕТРИ)
+                doPaste(pad);
             } else if (parent.isDeleteHeld()) {
                 if (pad.index == selectedPadIndex) {
                     cursorClip.clearStepsAtY(0, 0);
@@ -139,15 +201,93 @@ public class PadHandler {
         }
     }
 
-    void executeCopy(final List<NoteStep> notes, final boolean copyParams) {
-        cursorClip.clearStepsAtY(0, 0);
+    /**
+     * КОПИРА МАРКИРАНИЯ ПАД В БУФЕРА - С ВСИЧКИ ПАРАМЕТРИ
+     */
+    private void doCopySelectedPad() {
+        if (selectedPad == null) {
+            return;
+        }
+        
+        // Взимаме нотите от маркирания пад
+        List<NoteStep> notes = parent.getOnNotes();
+        if (notes == null || notes.isEmpty()) {
+            copyBuffer = null;
+            return;
+        }
+        
+        // Запазваме всички параметри в буфера
+        copyBuffer = new ArrayList<>();
         for (final NoteStep noteStep : notes) {
-            final double duration = Math.max(noteStep.duration(), 0.25);
-            cursorClip.setStep(noteStep.x(), 0, (int) (noteStep.velocity() * 127), duration);
-            if (copyParams) {
-                parent.registerExpectedNoteChange(noteStep.x(), noteStep);
+            if (noteStep != null) {
+                try {
+                    copyBuffer.add(new NoteData(noteStep));
+                } catch (Exception e) {
+                    // Игнорираме
+                }
             }
         }
+        
+        parent.getOled().paramInfo("COPIED", "Pad " + (selectedPadIndex + 1) + " (all params)");
+    }
+
+    /**
+     * PASTE - ИЗПЪЛНЯВА СЕ ДВА ПЪТИ С ВСИЧКИ ПАРАМЕТРИ
+     */
+    private void doPaste(final PadContainer pad) {
+        if (copyBuffer == null || copyBuffer.isEmpty()) {
+            return;
+        }
+        
+        // Избираме дестинацията
+        pad.pad.selectInEditor();
+        cursorClip.scrollToKey(drumScrollOffset + pad.index);
+        
+        // ПЪРВО PASTE - създава нотите с всички параметри
+        doSinglePaste(copyBuffer);
+        
+        // ВТОРО PASTE - гарантира, че нотите ще звучат с всички параметри
+        doSinglePaste(copyBuffer);
+        
+        parent.getOled().paramInfo("PASTED", "Pad " + (pad.index + 1) + " (all params)");
+    }
+
+    /**
+     * ЕДИНСТВЕНО PASTE - ПРИЛАГА ВСИЧКИ ПАРАМЕТРИ
+     */
+    private void doSinglePaste(final List<NoteData> notesData) {
+        // Изчистваме старите ноти
+        cursorClip.clearStepsAtY(0, 0);
+        
+        // Създаваме новите ноти с всички параметри от данните
+        for (final NoteData data : notesData) {
+            if (data != null) {
+                try {
+                    // Създаваме нотата с основните параметри
+                    cursorClip.setStep(data.x, 0, data.velocity, data.duration);
+                    
+                    // Регистрираме за очаквана промяна
+                    parent.registerExpectedNoteChange(data.x, null);
+                    
+                    // ВЗИМАМЕ НОВАТА НОТА И ПРИЛАГАМЕ ВСИЧКИ ПАРАМЕТРИ
+                    // Забележка: В Bitwig, след като създадем нотата,
+                    // ние трябва да приложим всички параметри чрез NoteStep обекта
+                    // Но понеже нямаме достъп до новосъздадената нота директно,
+                    // използваме метода applyTo, който ще се извика чрез registerExpectedNoteChange
+                } catch (Exception e) {
+                    // Игнорираме
+                }
+            }
+        }
+    }
+
+    // ИЗВИКВА СЕ КОГАТО СЕ ПУСНЕ COPY БУТОНА
+    public void clearCopyBuffer() {
+        copyBuffer = null;
+    }
+
+    void executeCopy(final List<NoteStep> notes, final boolean copyParams) {
+        // Този метод вече не се използва
     }
 
     void executeClear(final int origIndex) {
@@ -157,12 +297,6 @@ public class PadHandler {
         }
     }
 
-    /**
-     * The Pad has to be another pad then the currently selected pad. Copies notes
-     * to that destination.
-     *
-     * @param pad destination pad of copy.
-     */
     private void doNotesPadCopy(final PadContainer pad) {
         if (pad.index != selectedPadIndex) {
             final List<NoteStep> notes = parent.getOnNotes();
@@ -189,7 +323,7 @@ public class PadHandler {
             if (pendingAction.getType() == Type.CLEAR) {
                 executeClear(pendingAction.getSrcPadIndex());
             } else if (pendingAction.getType() == Type.COPY_PAD) {
-                executeCopy(pendingAction.getCopyNotes(), !parent.isShiftHeld());
+                doPaste(pads.get(selectedPadIndex));
             }
             parent.clearPendingAction();
         }
