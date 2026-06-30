@@ -440,9 +440,10 @@ public class DrumSequenceMode extends Layer {
                 .collect(Collectors.toList());
     }
 
-    List<NoteStep> getOnNotes() {
+    List<CopiedNote> getOnNotes() {
         return Arrays.stream(assignments)
                 .filter(ns -> ns != null && ns.state() == State.NoteOn)
+                .map(CopiedNote::new)
                 .collect(Collectors.toList());
     }
 
