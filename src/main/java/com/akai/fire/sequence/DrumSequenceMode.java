@@ -440,10 +440,9 @@ public class DrumSequenceMode extends Layer {
                 .collect(Collectors.toList());
     }
 
-    List<CopiedNote> getOnNotes() {
+    List<NoteStep> getOnNotes() {
         return Arrays.stream(assignments)
                 .filter(ns -> ns != null && ns.state() == State.NoteOn)
-                .map(CopiedNote::new)
                 .collect(Collectors.toList());
     }
 
@@ -575,7 +574,7 @@ public class DrumSequenceMode extends Layer {
     }
 
     public void registerExpectedNoteChange(final int x, final NoteStep noteStep) {
-        expectedNoteChanges.put(x, noteStep);
+        expectedNoteChanges.put(noteStep.x(), noteStep);
     }
 
     public BooleanValueObject getLengthDisplay() {
