@@ -744,7 +744,8 @@ public class DrumSequenceMode extends Layer {
                 for (int i = 0; i < copy.length; i++) {
                     final NoteStep note = copy[i];
                     if (note != null && note.state() == NoteStep.State.NoteOn) {
-                        cursorClip.setStep(i, 0, (int) (note.velocity() * 127), note.duration());
+                        final int vel = (int)Math.round(note.velocity() * 127);
+                        cursorClip.setStep(i, 0, vel, note.duration());
                     }
                 }
                 cursorClip.scrollToKey(drumScrollOffset + selectedPadIndex);
