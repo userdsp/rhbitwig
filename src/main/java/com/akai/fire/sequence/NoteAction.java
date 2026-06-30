@@ -2,43 +2,45 @@ package com.akai.fire.sequence;
 
 import java.util.List;
 
-import com.bitwig.extension.controller.api.NoteStep;
-
 public class NoteAction {
-	public enum Type {
-		CLEAR, COPY_PAD;
-	}
 
-	private final int destPadIndex;
-	private final int srcPadIndex;
-	private final Type type;
-	private final List<NoteStep> copyNotes;
+    public enum Type {
+        CLEAR,
+        COPY_PAD
+    }
 
-	NoteAction(final int srcPadIndex, final int destPadIndex, final Type type) {
-		this(srcPadIndex, destPadIndex, type, null);
-	}
+    private final int destPadIndex;
+    private final int srcPadIndex;
+    private final Type type;
+    private final List<CopiedNote> copyNotes;
 
-	NoteAction(final int srcPadIndex, final int destPadIndex, final Type type, final List<NoteStep> copyNotes) {
-		this.destPadIndex = destPadIndex;
-		this.srcPadIndex = srcPadIndex;
-		this.type = type;
-		this.copyNotes = copyNotes;
-	}
+    NoteAction(final int srcPadIndex, final int destPadIndex, final Type type) {
+        this(srcPadIndex, destPadIndex, type, null);
+    }
 
-	public Type getType() {
-		return type;
-	}
+    NoteAction(final int srcPadIndex,
+               final int destPadIndex,
+               final Type type,
+               final List<CopiedNote> copyNotes) {
+        this.destPadIndex = destPadIndex;
+        this.srcPadIndex = srcPadIndex;
+        this.type = type;
+        this.copyNotes = copyNotes;
+    }
 
-	public int getSrcPadIndex() {
-		return srcPadIndex;
-	}
+    public Type getType() {
+        return type;
+    }
 
-	public int getDestPadIndex() {
-		return destPadIndex;
-	}
+    public int getSrcPadIndex() {
+        return srcPadIndex;
+    }
 
-	public List<NoteStep> getCopyNotes() {
-		return copyNotes;
-	}
+    public int getDestPadIndex() {
+        return destPadIndex;
+    }
 
+    public List<CopiedNote> getCopyNotes() {
+        return copyNotes;
+    }
 }
