@@ -142,7 +142,8 @@ public class PadHandler {
     void executeCopy(final List<NoteStep> notes, final boolean copyParams) {
         cursorClip.clearStepsAtY(0, 0);
         for (final NoteStep noteStep : notes) {
-            cursorClip.setStep(noteStep.x(), 0, (int) (noteStep.velocity() * 127), noteStep.duration());
+            final double duration = Math.max(noteStep.duration(), 0.25);
+            cursorClip.setStep(noteStep.x(), 0, (int) (noteStep.velocity() * 127), duration);
             if (copyParams) {
                 parent.registerExpectedNoteChange(noteStep.x(), noteStep);
             }
