@@ -139,18 +139,16 @@ public class PadHandler {
         }
     }
 
-private void executeCopy(final List<CopiedNote> notes, final boolean copyParams) {
-    cursorClip.clearStepsAtY(0, 0);
-
-    for (final CopiedNote note : notes) {
-        cursorClip.setStep(note.x, 0, note.velocity, note.duration);
-
-        if (copyParams) {
-            // TODO: ако ти трябва копиране на параметри, трябва да пазиш
-            // оригиналния NoteStep в CopiedNote или да променим логиката.
+    void executeCopy(final List<NoteStep> notes, final boolean copyParams) {
+        cursorClip.clearStepsAtY(0, 0);
+        for (final NoteStep noteStep : notes) {
+            final double duration = Math.max(noteStep.duration(), 0.25);
+            cursorClip.setStep(noteStep.x(), 0, (int) (noteStep.velocity() * 127), duration);
+            if (copyParams) {
+                parent.registerExpectedNoteChange(noteStep.x(), noteStep);
+            }
         }
     }
-}
 
     void executeClear(final int origIndex) {
         cursorClip.clearStepsAtY(0, 0);
@@ -167,7 +165,7 @@ private void executeCopy(final List<CopiedNote> notes, final boolean copyParams)
      */
     private void doNotesPadCopy(final PadContainer pad) {
         if (pad.index != selectedPadIndex) {
-            final List<CopiedNote> notes = parent.getOnNotes();
+            final List<NoteStep> notes = parent.getOnNotes();
             parent.registerPendingAction(new NoteAction(selectedPadIndex, pad.index, Type.COPY_PAD, notes));
             cursorClip.scrollToKey(drumScrollOffset + pad.index);
             pad.pad.selectInEditor();
