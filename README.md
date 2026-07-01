@@ -15,4 +15,4 @@ Keep holding COPY → you can tap multiple pads one by one, and each will receiv
 Summary:
 Select source → Copy to buffer → Hold COPY → Paste to destinations (multiple).
 
-Lexicon PSP42 ver. 2 is now also supported
+* Lexicon PSP42 ver. 2 is now also supported
